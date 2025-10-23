@@ -1,6 +1,7 @@
 from enum import Enum
 
-# --- Enums (must match encryption script) ---
+# --- Enums ---
+
 class MessageType(Enum):
     DIRECT_PAIRING = 0b000
     GROUP_PAIRING = 0b001
@@ -25,8 +26,47 @@ class TargetGroupID(Enum):
     OTHER2 = 0b110
     OTHER3 = 0b111
 
+def encrypt_message(msg_type: MessageType, conductor: ConductorID,
+                    target: TargetGroupID, tempo: int = None, time_ms: int = None):
+    """Build exactly 3 bytes (packet) based on inputs."""
 
-# --- Decryption Function ---
+    # Build first byte: 3 bits (msg) + 2 bits (conductor) + 3 bits (target)
+    first_byte = (msg_type.value << 5) | (conductor.value << 3) | target.value
+
+    # Build next two bytes depending on message type
+    if msg_type == MessageType.SET_TEMPO:
+        value = tempo or 0
+    elif msg_type == MessageType.START:
+        value = time_ms or 0
+    else:
+        value = 0
+
+    second_byte = (value >> 8) & 0xFF
+    third_byte = value & 0xFF
+    packet = bytes([first_byte, second_byte, third_byte])
+
+    # --- Display result ---
+    print("\n==============================")
+    print("PACKET ENCRYPTION SUMMARY")
+    print("==============================")
+    print(f"Message Type: {msg_type.name:<13} → {msg_type.value:03b}")
+    print(f"Conductor ID: {conductor.name:<10} → {conductor.value:02b}")
+    print(f"Target Group ID: {target.name:<10} → {target.value:03b}")
+
+    if msg_type == MessageType.SET_TEMPO:
+        print(f"Tempo: {value} BPM → {second_byte:08b} {third_byte:08b}")
+    elif msg_type == MessageType.START:
+        print(f"Time: {value} ms → {second_byte:08b} {third_byte:08b}")
+    else:
+        print("Tempo/Time: N/A → 00000000 00000000")
+
+    print("------------------------------")
+    print(f"→ Packet: {first_byte:08b} {second_byte:08b} {third_byte:08b}")
+    print(f"→ Raw Bytes: {packet}")
+    print("==============================\n")
+
+    return packet
+
 def decrypt_message(packet_bytes: bytes):
     """Take 3 bytes and decode them into readable values."""
     if len(packet_bytes) != 3:
@@ -77,15 +117,9 @@ def decrypt_message(packet_bytes: bytes):
 
     print("==============================\n")
 
-
-# --- Main (User Input) ---
-if __name__ == "__main__":
-    user_input = input('Enter 3 bytes (space-separated, e.g. "01001010 00000000 10110100"): ').strip()
-    bits = user_input.split()
-
-    if len(bits) != 3 or not all(len(b) == 8 and all(c in "01" for c in b) for b in bits):
-        raise ValueError("Please enter exactly 3 valid 8-bit binary bytes.")
-
-    # Convert to byte array
-    packet = bytes(int(b, 2) for b in bits)
-    decrypt_message(packet)
+    ## Tempo
+    ## typeOfConnection (Direct - Will NOT Propogate vs Group - Will Propogate)
+    ## Conductor ID
+    ## VibrationIntensity (If Metronome then Low Value, If Alert then High Value)
+    ## LEDColor (Either Group ID, Connection, Status Indicator)
+    ## LagCompensation (Current Time - Sent Time) mod 60
